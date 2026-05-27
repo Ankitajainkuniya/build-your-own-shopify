@@ -4,6 +4,8 @@
 
 This is a self-paced course where you build a working e-commerce platform — products, carts, checkout, inventory, webhooks, the works — from an empty folder to a functioning system. No magic, no framework hand-waving. Every commit is a tagged lesson with a written explanation of what you added and why.
 
+![build-your-own-shopify in action](demo.svg)
+
 Inspired by [`build-your-own-x`](https://github.com/codecrafters-io/build-your-own-x), [`build-your-own-redis`](https://app.codecrafters.io/courses/redis/overview), and the late, great Tushar Roy's interview prep approach: **understand by building**, not by reading.
 
 ## Why build your own Shopify?
