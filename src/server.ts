@@ -4,7 +4,6 @@ import { HttpError } from "./errors";
 import { registerProductRoutes } from "./products/routes";
 import { seedProducts } from "./products/seed";
 import { registerVariantRoutes } from "./variants/routes";
-import { variants } from "./variants/store";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -30,7 +29,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true }));
 
   seedProducts();
-  variants.clear();
   await registerProductRoutes(app);
   await registerVariantRoutes(app);
 

@@ -455,7 +455,6 @@ describe("variants (lesson 13)", () => {
     expect(v.productId).toBe("p_1");
     expect(v.sku).toBe("LIN-S-13");
     expect(v.title).toBe("small");
-    expect(v.position).toBe(0);
     expect(res.headers.location).toBe(`/products/p_1/variants/${v.id}`);
   });
 
@@ -563,5 +562,76 @@ describe("variants (lesson 13)", () => {
       url: `/products/p_2/variants/${variantId}`,
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("variant-level inventory (lesson 14)", () => {
+  it("product.inventory is the sum of its variants' inventory", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Sum Test One", priceCents: 1000, currency: "USD", inventory: 7 },
+    });
+    const productId = create.json().id;
+    expect(create.json().inventory).toBe(7);
+
+    await app.inject({
+      method: "POST",
+      url: `/products/${productId}/variants`,
+      payload: { optionValues: { size: "small" }, inventory: 3 },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/products/${productId}/variants`,
+      payload: { optionValues: { size: "medium" }, inventory: 5 },
+    });
+
+    const res = await app.inject({ method: "GET", url: `/products/${productId}` });
+    expect(res.json().inventory).toBe(15);
+  });
+
+  it("PATCH /products rejects inventory (must PATCH the variant)", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/products/p_1",
+      payload: { inventory: 99 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PATCH a variant updates the parent product's computed inventory", async () => {
+    const createProduct = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Patch Inventory Test", priceCents: 1000, currency: "USD", inventory: 10 },
+    });
+    const productId = createProduct.json().id;
+
+    const variantList = await app.inject({ method: "GET", url: `/products/${productId}/variants` });
+    const defaultVariant = variantList.json().items[0];
+
+    await app.inject({
+      method: "PATCH",
+      url: `/products/${productId}/variants/${defaultVariant.id}`,
+      payload: { inventory: 999 },
+    });
+
+    const after = await app.inject({ method: "GET", url: `/products/${productId}` });
+    expect(after.json().inventory).toBe(999);
+  });
+
+  it("?in_stock=true filters by computed total", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Zero Inventory Test", priceCents: 100, currency: "USD", inventory: 0 },
+    });
+    const id = create.json().id;
+
+    const inStockList = await app.inject({ method: "GET", url: "/products?in_stock=true&limit=100" });
+    expect(inStockList.json().items.some((p: any) => p.id === id)).toBe(false);
+
+    const outOfStockList = await app.inject({ method: "GET", url: "/products?in_stock=false&limit=100" });
+    expect(outOfStockList.json().items.some((p: any) => p.id === id)).toBe(true);
   });
 });

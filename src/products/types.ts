@@ -6,7 +6,6 @@ export interface Product {
   title: string;
   priceCents: number;
   currency: Currency;
-  inventory: number;
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
