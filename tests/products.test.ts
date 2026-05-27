@@ -255,3 +255,64 @@ describe("cursor pagination (lesson 9)", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("search + filtering (lesson 10)", () => {
+  it("filters by currency", async () => {
+    const res = await app.inject({ method: "GET", url: "/products?currency=USD" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.every((p: any) => p.currency === "USD")).toBe(true);
+  });
+
+  it("filters by tag", async () => {
+    const res = await app.inject({ method: "GET", url: "/products?tag=sale" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.length).toBeGreaterThan(0);
+    expect(res.json().items.every((p: any) => p.tags.includes("sale"))).toBe(true);
+  });
+
+  it("filters by in_stock", async () => {
+    const inStock = (await app.inject({ method: "GET", url: "/products?in_stock=true" })).json();
+    const outOfStock = (await app.inject({ method: "GET", url: "/products?in_stock=false" })).json();
+    expect(inStock.items.every((p: any) => p.inventory > 0)).toBe(true);
+    expect(outOfStock.items.every((p: any) => p.inventory === 0)).toBe(true);
+  });
+
+  it("filters by price range", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/products?min_price=2000&max_price=7000",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.every((p: any) => p.priceCents >= 2000 && p.priceCents <= 7000)).toBe(true);
+  });
+
+  it("?q= is an alias for ?search=", async () => {
+    const a = (await app.inject({ method: "GET", url: "/products?q=mug" })).json();
+    const b = (await app.inject({ method: "GET", url: "/products?search=mug" })).json();
+    expect(a.items.map((p: any) => p.id).sort()).toEqual(b.items.map((p: any) => p.id).sort());
+  });
+
+  it("filters compose (AND)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/products?currency=USD&tag=kitchen",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.every((p: any) => p.currency === "USD" && p.tags.includes("kitchen"))).toBe(true);
+  });
+
+  it("accepts tags on create", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: {
+        title: "Tagged Product Z",
+        priceCents: 1000,
+        currency: "USD",
+        tags: ["new", "featured"],
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().tags).toEqual(["new", "featured"]);
+  });
+});

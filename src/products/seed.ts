@@ -10,6 +10,7 @@ export function seedProducts(): void {
     priceCents: 6900,
     currency: "USD",
     inventory: 24,
+    tags: ["apparel", "summer"],
     createdAt: now,
     updatedAt: now,
   });
@@ -20,6 +21,7 @@ export function seedProducts(): void {
     priceCents: 1800,
     currency: "USD",
     inventory: 200,
+    tags: ["home", "kitchen", "sale"],
     createdAt: now,
     updatedAt: now,
   });
@@ -30,6 +32,7 @@ export function seedProducts(): void {
     priceCents: 8500,
     currency: "USD",
     inventory: 0,
+    tags: ["accessories", "leather"],
     createdAt: now,
     updatedAt: now,
   });

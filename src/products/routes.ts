@@ -9,9 +9,17 @@ import type { Product } from "./types";
 
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().min(1).max(100).optional(),
   search: z.string().trim().min(1).max(100).optional(),
   cursor: z.string().min(1).max(100).optional(),
+  currency: z.enum(["USD", "EUR", "INR"]).optional(),
+  tag: z.string().trim().min(1).max(50).optional(),
+  in_stock: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+  min_price: z.coerce.number().int().min(0).optional(),
+  max_price: z.coerce.number().int().min(0).optional(),
 });
+
+const TagList = z.array(z.string().trim().min(1).max(50)).max(20);
 
 const CreateBody = z.object({
   title: z.string().trim().min(1).max(200),
@@ -19,6 +27,7 @@ const CreateBody = z.object({
   currency: z.enum(["USD", "EUR", "INR"]),
   inventory: z.number().int().min(0).optional(),
   slug: z.string().trim().min(1).max(100).optional(),
+  tags: TagList.optional(),
 });
 
 const PatchBody = z.object({
@@ -27,6 +36,7 @@ const PatchBody = z.object({
   currency: z.enum(["USD", "EUR", "INR"]).optional(),
   inventory: z.number().int().min(0).optional(),
   slug: z.string().trim().min(1).max(100).optional(),
+  tags: TagList.optional(),
 }).strict();
 
 const newProductId = (): string => `p_${randomBytes(6).toString("base64url")}`;
@@ -37,11 +47,17 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     if (!parse.success) {
       throw BadRequest("invalid query parameters", parse.error.flatten());
     }
-    const { limit, search, cursor } = parse.data;
+    const { limit, search, q, cursor, currency, tag, in_stock, min_price, max_price } = parse.data;
+    const needle = (q ?? search)?.toLowerCase();
 
     const filtered = products
       .list()
-      .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => !needle || p.title.toLowerCase().includes(needle))
+      .filter((p) => !currency || p.currency === currency)
+      .filter((p) => !tag || p.tags.includes(tag))
+      .filter((p) => in_stock === undefined || (in_stock ? p.inventory > 0 : p.inventory === 0))
+      .filter((p) => min_price === undefined || p.priceCents >= min_price)
+      .filter((p) => max_price === undefined || p.priceCents <= max_price)
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
     let startIdx = 0;
@@ -94,6 +110,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       priceCents: input.priceCents,
       currency: input.currency,
       inventory: input.inventory ?? 0,
+      tags: input.tags ?? [],
       createdAt: now,
       updatedAt: now,
     };
