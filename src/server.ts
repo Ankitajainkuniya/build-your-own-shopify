@@ -1,5 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { registerProductRoutes } from "./products/routes";
+import { seedProducts } from "./products/seed";
+
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL || "info" },
@@ -7,6 +10,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.get("/health", async () => ({ ok: true }));
+
+  seedProducts();
+  await registerProductRoutes(app);
 
   return app;
 }
