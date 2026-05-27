@@ -11,6 +11,7 @@ export function seedProducts(): void {
     currency: "USD",
     inventory: 24,
     createdAt: now,
+    updatedAt: now,
   });
   products.create({
     id: "p_2",
@@ -20,6 +21,7 @@ export function seedProducts(): void {
     currency: "USD",
     inventory: 200,
     createdAt: now,
+    updatedAt: now,
   });
   products.create({
     id: "p_3",
@@ -29,5 +31,6 @@ export function seedProducts(): void {
     currency: "USD",
     inventory: 0,
     createdAt: now,
+    updatedAt: now,
   });
 }

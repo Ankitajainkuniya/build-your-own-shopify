@@ -164,3 +164,53 @@ describe("slugs (lesson 7)", () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe("PATCH /products/:id (lesson 8)", () => {
+  it("updates a single field, bumps updatedAt, preserves createdAt", async () => {
+    const before = (await app.inject({ method: "GET", url: "/products/p_1" })).json();
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/products/p_1",
+      payload: { priceCents: 9999 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.priceCents).toBe(9999);
+    expect(body.title).toBe(before.title);
+    expect(body.createdAt).toBe(before.createdAt);
+    expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(before.updatedAt).getTime());
+  });
+
+  it("404s on unknown id", async () => {
+    const res = await app.inject({ method: "PATCH", url: "/products/p_nope", payload: { priceCents: 1 } });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("rejects unknown fields (strict)", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/products/p_1",
+      payload: { wat: 42 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("changing slug enforces uniqueness", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/products/p_1",
+      payload: { slug: "ceramic-mug" },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("changing slug to a free value works and normalizes", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/products/p_3",
+      payload: { slug: "Brown Leather Wallet!" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().slug).toBe("brown-leather-wallet");
+  });
+});

@@ -20,6 +20,14 @@ const CreateBody = z.object({
   slug: z.string().trim().min(1).max(100).optional(),
 });
 
+const PatchBody = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  priceCents: z.number().int().min(0).optional(),
+  currency: z.enum(["USD", "EUR", "INR"]).optional(),
+  inventory: z.number().int().min(0).optional(),
+  slug: z.string().trim().min(1).max(100).optional(),
+}).strict();
+
 const newProductId = (): string => `p_${randomBytes(6).toString("base64url")}`;
 
 export async function registerProductRoutes(app: FastifyInstance): Promise<void> {
@@ -63,6 +71,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       throw Conflict("slug already in use", { slug: desiredSlug });
     }
 
+    const now = new Date();
     const product: Product = {
       id: newProductId(),
       slug: desiredSlug,
@@ -70,10 +79,37 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       priceCents: input.priceCents,
       currency: input.currency,
       inventory: input.inventory ?? 0,
-      createdAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     };
     products.create(product);
     reply.code(201).header("location", `/products/${product.id}`);
     return product;
+  });
+
+  app.patch<{ Params: { id: string } }>("/products/:id", async (req) => {
+    const existing = products.get(req.params.id);
+    if (!existing) throw NotFound("product");
+
+    const parse = PatchBody.safeParse(req.body);
+    if (!parse.success) {
+      throw BadRequest("invalid patch body", parse.error.flatten());
+    }
+    const patch = parse.data;
+
+    if (patch.slug && patch.slug !== existing.slug) {
+      const normalized = slugify(patch.slug);
+      if (!normalized) {
+        throw BadRequest("invalid slug", { slug: patch.slug });
+      }
+      const collide = products.findBySlug(normalized);
+      if (collide && collide.id !== existing.id) {
+        throw Conflict("slug already in use", { slug: normalized });
+      }
+      patch.slug = normalized;
+    }
+
+    const updated = products.update(existing.id, patch);
+    return updated;
   });
 }
