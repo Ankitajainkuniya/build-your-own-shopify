@@ -38,6 +38,7 @@ export function seedProducts(): void {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    options: [],
   });
   seedDefaultVariant("p_1", "LINEN-DEFAULT", 24);
 
@@ -51,6 +52,7 @@ export function seedProducts(): void {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    options: [],
   });
   seedDefaultVariant("p_2", "MUG-DEFAULT", 200);
 
@@ -64,6 +66,7 @@ export function seedProducts(): void {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    options: [],
   });
   seedDefaultVariant("p_3", "WALLET-DEFAULT", 0);
 }

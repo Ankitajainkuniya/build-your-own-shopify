@@ -1,5 +1,11 @@
 export type Currency = "USD" | "EUR" | "INR";
 
+export interface ProductOption {
+  name: string;
+  values: string[];
+  position: number;
+}
+
 export interface Product {
   id: string;
   slug: string;
@@ -7,6 +13,7 @@ export interface Product {
   priceCents: number;
   currency: Currency;
   tags: string[];
+  options: ProductOption[];
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

@@ -635,3 +635,112 @@ describe("variant-level inventory (lesson 14)", () => {
     expect(outOfStockList.json().items.some((p: any) => p.id === id)).toBe(true);
   });
 });
+
+describe("options + generate-variants (lesson 15)", () => {
+  async function makeProduct(title: string): Promise<string> {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title, priceCents: 1000, currency: "USD" },
+    });
+    return res.json().id;
+  }
+
+  it("adds options to a product", async () => {
+    const id = await makeProduct("Options Test One");
+    const res = await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "color", values: ["red", "blue"] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().options).toHaveLength(1);
+    expect(res.json().options[0].name).toBe("color");
+    expect(res.json().options[0].values).toEqual(["red", "blue"]);
+  });
+
+  it("rejects duplicate values in an option", async () => {
+    const id = await makeProduct("Options Test Two");
+    const res = await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "color", values: ["red", "red"] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("generates the Cartesian product of all options", async () => {
+    const id = await makeProduct("Cartesian Test One");
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "color", values: ["red", "blue"] },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "size", values: ["S", "M", "L"] },
+    });
+
+    const gen = await app.inject({ method: "POST", url: `/products/${id}/generate-variants` });
+    expect(gen.statusCode).toBe(200);
+    expect(gen.json().total).toBe(6);
+    expect(gen.json().created.length).toBe(6);
+    expect(gen.json().skipped.length).toBe(0);
+  });
+
+  it("is idempotent (second call creates nothing)", async () => {
+    const id = await makeProduct("Idempotent Test");
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "color", values: ["red"] },
+    });
+    await app.inject({ method: "POST", url: `/products/${id}/generate-variants` });
+    const second = await app.inject({ method: "POST", url: `/products/${id}/generate-variants` });
+    expect(second.json().created.length).toBe(0);
+    expect(second.json().skipped.length).toBeGreaterThan(0);
+  });
+
+  it("400s if no options are defined", async () => {
+    const id = await makeProduct("No Options Test");
+    const res = await app.inject({ method: "POST", url: `/products/${id}/generate-variants` });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("caps generation at 100 variants", async () => {
+    const id = await makeProduct("Cap Test");
+    const tenValues = Array.from({ length: 10 }, (_, i) => `v${i}`);
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "a", values: tenValues },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "b", values: tenValues },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "c", values: tenValues },
+    });
+    const gen = await app.inject({ method: "POST", url: `/products/${id}/generate-variants` });
+    expect(gen.statusCode).toBe(400);
+  });
+
+  it("DELETE removes an option", async () => {
+    const id = await makeProduct("Delete Option Test");
+    await app.inject({
+      method: "POST",
+      url: `/products/${id}/options`,
+      payload: { name: "material", values: ["cotton"] },
+    });
+    const del = await app.inject({ method: "DELETE", url: `/products/${id}/options/material` });
+    expect(del.statusCode).toBe(204);
+
+    const after = await app.inject({ method: "GET", url: `/products/${id}` });
+    expect(after.json().options.find((o: any) => o.name === "material")).toBeUndefined();
+  });
+});

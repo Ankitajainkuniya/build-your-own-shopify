@@ -120,6 +120,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       priceCents: input.priceCents,
       currency: input.currency,
       tags: input.tags ?? [],
+      options: [],
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -177,6 +178,111 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     products.softDelete(existing.id);
     reply.code(204);
     return null;
+  });
+
+  const OptionBody = z.object({
+    name: z.string().trim().min(1).max(50),
+    values: z.array(z.string().trim().min(1).max(50)).min(1).max(50),
+  });
+
+  app.post<{ Params: { id: string } }>("/products/:id/options", async (req) => {
+    const product = products.get(req.params.id);
+    if (!product) throw NotFound("product");
+
+    const parse = OptionBody.safeParse(req.body);
+    if (!parse.success) throw BadRequest("invalid option body", parse.error.flatten());
+    const { name, values } = parse.data;
+
+    const uniqueValues = Array.from(new Set(values));
+    if (uniqueValues.length !== values.length) {
+      throw BadRequest("option values must be unique", { values });
+    }
+
+    const existingOptions = product.options ?? [];
+    const idx = existingOptions.findIndex((o) => o.name === name);
+    const nextOptions = [...existingOptions];
+    if (idx === -1) {
+      nextOptions.push({ name, values: uniqueValues, position: existingOptions.length });
+    } else {
+      nextOptions[idx] = { ...nextOptions[idx], values: uniqueValues };
+    }
+
+    const updated = products.update(product.id, { options: nextOptions });
+    return updated ? serializeProduct(updated) : undefined;
+  });
+
+  app.delete<{ Params: { id: string; optionName: string } }>(
+    "/products/:id/options/:optionName",
+    async (req, reply) => {
+      const product = products.get(req.params.id);
+      if (!product) throw NotFound("product");
+      const next = (product.options ?? []).filter((o) => o.name !== req.params.optionName);
+      if (next.length === (product.options ?? []).length) throw NotFound("option");
+      products.update(product.id, {
+        options: next.map((o, i) => ({ ...o, position: i })),
+      });
+      reply.code(204);
+      return null;
+    },
+  );
+
+  app.post<{ Params: { id: string } }>("/products/:id/generate-variants", async (req) => {
+    const product = products.get(req.params.id);
+    if (!product) throw NotFound("product");
+
+    const options = [...(product.options ?? [])].sort((a, b) => a.position - b.position);
+    if (options.length === 0) {
+      throw BadRequest("product has no options to generate variants from", { id: product.id });
+    }
+
+    const combinations = options.reduce<Record<string, string>[]>(
+      (acc, option) =>
+        acc.flatMap((partial) =>
+          option.values.map((value) => ({ ...partial, [option.name]: value })),
+        ),
+      [{}],
+    );
+
+    if (combinations.length > 100) {
+      throw BadRequest("refusing to generate more than 100 variants in a single call", {
+        attempted: combinations.length,
+      });
+    }
+
+    const existing = variants.listForProduct(product.id);
+    const existingFingerprints = new Set(
+      existing.map((v) => JSON.stringify(v.optionValues, Object.keys(v.optionValues).sort())),
+    );
+
+    const created: Variant[] = [];
+    const skipped: Record<string, string>[] = [];
+    const now = new Date();
+
+    for (const combo of combinations) {
+      const fingerprint = JSON.stringify(combo, Object.keys(combo).sort());
+      if (existingFingerprints.has(fingerprint)) {
+        skipped.push(combo);
+        continue;
+      }
+      const v: Variant = {
+        id: newVariantId(),
+        productId: product.id,
+        sku: null,
+        title: Object.values(combo).join(" / "),
+        priceCents: null,
+        inventory: 0,
+        optionValues: combo,
+        position: existing.length + created.length,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      variants.create(v);
+      created.push(v);
+      existingFingerprints.add(fingerprint);
+    }
+
+    return { created, skipped, total: combinations.length };
   });
 
   app.post<{ Params: { id: string } }>("/products/:id/restore", async (req) => {
