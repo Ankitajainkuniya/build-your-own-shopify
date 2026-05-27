@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { HttpError } from "./errors";
 import { registerProductRoutes } from "./products/routes";
 import { seedProducts } from "./products/seed";
 
@@ -7,6 +8,21 @@ export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL || "info" },
     genReqId: () => `req_${Math.random().toString(36).slice(2, 11)}`,
+  });
+
+  app.setErrorHandler((err, req, reply) => {
+    if (err instanceof HttpError) {
+      req.log.warn({ err, requestId: req.id }, "http error");
+      return reply.code(err.statusCode).send({
+        error: { code: err.code, message: err.message, details: err.details },
+        requestId: req.id,
+      });
+    }
+    req.log.error({ err, requestId: req.id }, "unhandled error");
+    return reply.code(500).send({
+      error: { code: "internal_error", message: "Something went wrong." },
+      requestId: req.id,
+    });
   });
 
   app.get("/health", async () => ({ ok: true }));
