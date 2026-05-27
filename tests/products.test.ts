@@ -214,3 +214,44 @@ describe("PATCH /products/:id (lesson 8)", () => {
     expect(res.json().slug).toBe("brown-leather-wallet");
   });
 });
+
+describe("cursor pagination (lesson 9)", () => {
+  it("returns nextCursor when there are more pages", async () => {
+    const res = await app.inject({ method: "GET", url: "/products?limit=1" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items.length).toBe(1);
+    expect(body.nextCursor).toBeTruthy();
+  });
+
+  it("returns nextCursor=null when at end of list", async () => {
+    const res = await app.inject({ method: "GET", url: "/products?limit=100" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().nextCursor).toBeNull();
+  });
+
+  it("walks forward with cursor, no duplicates, no skips", async () => {
+    const seen = new Set<string>();
+    let cursor: string | null = null;
+    let pages = 0;
+    while (pages < 10) {
+      const url = cursor ? `/products?limit=1&cursor=${encodeURIComponent(cursor)}` : "/products?limit=1";
+      const res = await app.inject({ method: "GET", url });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      for (const item of body.items) {
+        expect(seen.has(item.id)).toBe(false);
+        seen.add(item.id);
+      }
+      if (!body.nextCursor) break;
+      cursor = body.nextCursor;
+      pages += 1;
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("400s on unknown cursor", async () => {
+    const res = await app.inject({ method: "GET", url: "/products?cursor=p_nope_nope" });
+    expect(res.statusCode).toBe(400);
+  });
+});

@@ -10,6 +10,7 @@ import type { Product } from "./types";
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).max(100).optional(),
+  cursor: z.string().min(1).max(100).optional(),
 });
 
 const CreateBody = z.object({
@@ -36,12 +37,26 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     if (!parse.success) {
       throw BadRequest("invalid query parameters", parse.error.flatten());
     }
-    const { limit, search } = parse.data;
-    const items = products
+    const { limit, search, cursor } = parse.data;
+
+    const filtered = products
       .list()
       .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()))
-      .slice(0, limit);
-    return { items };
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+    let startIdx = 0;
+    if (cursor) {
+      const cursorIdx = filtered.findIndex((p) => p.id === cursor);
+      if (cursorIdx === -1) {
+        throw BadRequest("cursor not found — page may have shifted, restart from the beginning", { cursor });
+      }
+      startIdx = cursorIdx + 1;
+    }
+
+    const page = filtered.slice(startIdx, startIdx + limit);
+    const nextCursor = page.length === limit && startIdx + limit < filtered.length ? page[page.length - 1].id : null;
+
+    return { items: page, nextCursor };
   });
 
   app.get<{ Params: { id: string } }>("/products/:id", async (req) => {
