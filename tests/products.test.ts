@@ -441,3 +441,127 @@ describe("indexes (lesson 12)", () => {
     expect(inNew.json().items.some((p: any) => p.id === id)).toBe(true);
   });
 });
+
+describe("variants (lesson 13)", () => {
+  it("creates a variant under a product", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products/p_1/variants",
+      payload: { sku: "LIN-S-13", optionValues: { size: "small" }, inventory: 10 },
+    });
+    expect(res.statusCode).toBe(201);
+    const v = res.json();
+    expect(v.id).toMatch(/^v_/);
+    expect(v.productId).toBe("p_1");
+    expect(v.sku).toBe("LIN-S-13");
+    expect(v.title).toBe("small");
+    expect(v.position).toBe(0);
+    expect(res.headers.location).toBe(`/products/p_1/variants/${v.id}`);
+  });
+
+  it("lists variants for a product", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/products/p_2/variants",
+      payload: { sku: "MUG-A", optionValues: { color: "white" } },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/products/p_2/variants",
+      payload: { sku: "MUG-B", optionValues: { color: "black" } },
+    });
+    const res = await app.inject({ method: "GET", url: "/products/p_2/variants" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("404s when creating variant on unknown product", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products/p_nope/variants",
+      payload: { optionValues: { size: "small" } },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("rejects duplicate optionValues within a product", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/products/p_3/variants",
+      payload: { optionValues: { color: "brown" } },
+    });
+    const dup = await app.inject({
+      method: "POST",
+      url: "/products/p_3/variants",
+      payload: { optionValues: { color: "brown" } },
+    });
+    expect(dup.statusCode).toBe(409);
+  });
+
+  it("rejects duplicate SKUs globally", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/products/p_1/variants",
+      payload: { sku: "UNIQUE-SKU-13", optionValues: { material: "linen" } },
+    });
+    const dup = await app.inject({
+      method: "POST",
+      url: "/products/p_2/variants",
+      payload: { sku: "UNIQUE-SKU-13", optionValues: { material: "ceramic" } },
+    });
+    expect(dup.statusCode).toBe(409);
+  });
+
+  it("PATCH updates a variant", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products/p_1/variants",
+      payload: { optionValues: { fit: "slim" }, inventory: 5 },
+    });
+    const variantId = create.json().id;
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/products/p_1/variants/${variantId}`,
+      payload: { inventory: 99 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().inventory).toBe(99);
+  });
+
+  it("DELETE soft-deletes a variant", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products/p_1/variants",
+      payload: { optionValues: { fit: "loose" } },
+    });
+    const variantId = create.json().id;
+
+    const del = await app.inject({
+      method: "DELETE",
+      url: `/products/p_1/variants/${variantId}`,
+    });
+    expect(del.statusCode).toBe(204);
+
+    const after = await app.inject({
+      method: "GET",
+      url: `/products/p_1/variants/${variantId}`,
+    });
+    expect(after.statusCode).toBe(404);
+  });
+
+  it("variant from different product 404s", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products/p_1/variants",
+      payload: { optionValues: { tone: "warm" } },
+    });
+    const variantId = create.json().id;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/products/p_2/variants/${variantId}`,
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
