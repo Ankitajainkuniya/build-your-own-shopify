@@ -70,3 +70,48 @@ describe("GET /products/:id", () => {
     expect(res.json().error.code).toBe("not_found");
   });
 });
+
+describe("POST /products", () => {
+  it("creates a product, assigns id and createdAt, returns 201", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Wool Beanie", priceCents: 3200, currency: "USD", inventory: 40 },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.id).toMatch(/^p_/);
+    expect(body.title).toBe("Wool Beanie");
+    expect(body.inventory).toBe(40);
+    expect(body.createdAt).toBeTruthy();
+    expect(res.headers.location).toBe(`/products/${body.id}`);
+  });
+
+  it("rejects negative prices", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Bad", priceCents: -1, currency: "USD" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects unknown currencies", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "X", priceCents: 100, currency: "BTC" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("ignores client-supplied id (server controls identity)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { id: "p_HACKER", title: "X", priceCents: 100, currency: "USD" },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().id).not.toBe("p_HACKER");
+  });
+});

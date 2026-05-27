@@ -1,13 +1,25 @@
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { BadRequest, NotFound } from "../errors";
 import { products } from "./store";
+import type { Product } from "./types";
 
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).max(100).optional(),
 });
+
+const CreateBody = z.object({
+  title: z.string().trim().min(1).max(200),
+  priceCents: z.number().int().min(0),
+  currency: z.enum(["USD", "EUR", "INR"]),
+  inventory: z.number().int().min(0).optional(),
+  slug: z.string().trim().min(1).max(100).optional(),
+});
+
+const newProductId = (): string => `p_${randomBytes(6).toString("base64url")}`;
 
 export async function registerProductRoutes(app: FastifyInstance): Promise<void> {
   app.get("/products", async (req) => {
@@ -27,5 +39,25 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     const p = products.get(req.params.id);
     if (!p) throw NotFound("product");
     return p;
+  });
+
+  app.post("/products", async (req, reply) => {
+    const parse = CreateBody.safeParse(req.body);
+    if (!parse.success) {
+      throw BadRequest("invalid product body", parse.error.flatten());
+    }
+    const input = parse.data;
+    const product: Product = {
+      id: newProductId(),
+      slug: input.slug ?? `product-${Date.now()}`,
+      title: input.title,
+      priceCents: input.priceCents,
+      currency: input.currency,
+      inventory: input.inventory ?? 0,
+      createdAt: new Date(),
+    };
+    products.create(product);
+    reply.code(201).header("location", `/products/${product.id}`);
+    return product;
   });
 }

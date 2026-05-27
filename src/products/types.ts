@@ -9,3 +9,11 @@ export interface Product {
   inventory: number;
   createdAt: Date;
 }
+
+export interface CreateProductInput {
+  title: string;
+  priceCents: number;
+  currency: Currency;
+  inventory?: number;
+  slug?: string;
+}
