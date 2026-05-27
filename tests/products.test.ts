@@ -316,3 +316,78 @@ describe("search + filtering (lesson 10)", () => {
     expect(res.json().tags).toEqual(["new", "featured"]);
   });
 });
+
+describe("soft delete (lesson 11)", () => {
+  it("DELETE returns 204 and hides product from default list", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Doomed Item One", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+
+    const del = await app.inject({ method: "DELETE", url: `/products/${id}` });
+    expect(del.statusCode).toBe(204);
+
+    const after = await app.inject({ method: "GET", url: `/products/${id}` });
+    expect(after.statusCode).toBe(404);
+
+    const list = await app.inject({ method: "GET", url: "/products?limit=100" });
+    expect(list.json().items.some((p: any) => p.id === id)).toBe(false);
+  });
+
+  it("?include_deleted=true reveals deleted products", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Doomed Item Two", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+    await app.inject({ method: "DELETE", url: `/products/${id}` });
+
+    const list = await app.inject({ method: "GET", url: "/products?limit=100&include_deleted=true" });
+    const found = list.json().items.find((p: any) => p.id === id);
+    expect(found).toBeTruthy();
+    expect(found.deletedAt).toBeTruthy();
+  });
+
+  it("POST /restore brings it back", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Doomed Item Three", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+    await app.inject({ method: "DELETE", url: `/products/${id}` });
+
+    const restore = await app.inject({ method: "POST", url: `/products/${id}/restore` });
+    expect(restore.statusCode).toBe(200);
+    expect(restore.json().deletedAt).toBeNull();
+
+    const after = await app.inject({ method: "GET", url: `/products/${id}` });
+    expect(after.statusCode).toBe(200);
+  });
+
+  it("DELETE on already-deleted product returns 404", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Doomed Item Four", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+    await app.inject({ method: "DELETE", url: `/products/${id}` });
+    const again = await app.inject({ method: "DELETE", url: `/products/${id}` });
+    expect(again.statusCode).toBe(404);
+  });
+
+  it("restoring a non-deleted product returns 400", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Live Item Five", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+    const res = await app.inject({ method: "POST", url: `/products/${id}/restore` });
+    expect(res.statusCode).toBe(400);
+  });
+});

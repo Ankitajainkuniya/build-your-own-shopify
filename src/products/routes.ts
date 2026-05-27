@@ -17,6 +17,7 @@ const ListQuery = z.object({
   in_stock: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
   min_price: z.coerce.number().int().min(0).optional(),
   max_price: z.coerce.number().int().min(0).optional(),
+  include_deleted: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
 });
 
 const TagList = z.array(z.string().trim().min(1).max(50)).max(20);
@@ -47,11 +48,11 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     if (!parse.success) {
       throw BadRequest("invalid query parameters", parse.error.flatten());
     }
-    const { limit, search, q, cursor, currency, tag, in_stock, min_price, max_price } = parse.data;
+    const { limit, search, q, cursor, currency, tag, in_stock, min_price, max_price, include_deleted } = parse.data;
     const needle = (q ?? search)?.toLowerCase();
 
     const filtered = products
-      .list()
+      .list({ includeDeleted: include_deleted })
       .filter((p) => !needle || p.title.toLowerCase().includes(needle))
       .filter((p) => !currency || p.currency === currency)
       .filter((p) => !tag || p.tags.includes(tag))
@@ -113,6 +114,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       tags: input.tags ?? [],
       createdAt: now,
       updatedAt: now,
+      deletedAt: null,
     };
     products.create(product);
     reply.code(201).header("location", `/products/${product.id}`);
@@ -143,5 +145,23 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
 
     const updated = products.update(existing.id, patch);
     return updated;
+  });
+
+  app.delete<{ Params: { id: string } }>("/products/:id", async (req, reply) => {
+    const existing = products.get(req.params.id);
+    if (!existing) throw NotFound("product");
+    products.softDelete(existing.id);
+    reply.code(204);
+    return null;
+  });
+
+  app.post<{ Params: { id: string } }>("/products/:id/restore", async (req) => {
+    const existing = products.get(req.params.id, { includeDeleted: true });
+    if (!existing) throw NotFound("product");
+    if (existing.deletedAt === null) {
+      throw BadRequest("product is not deleted", { id: existing.id });
+    }
+    const restored = products.restore(existing.id);
+    return restored;
   });
 }

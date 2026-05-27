@@ -10,6 +10,7 @@ export interface Product {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }
 
 export interface CreateProductInput {

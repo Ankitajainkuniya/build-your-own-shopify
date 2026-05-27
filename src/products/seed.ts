@@ -13,6 +13,7 @@ export function seedProducts(): void {
     tags: ["apparel", "summer"],
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   });
   products.create({
     id: "p_2",
@@ -24,6 +25,7 @@ export function seedProducts(): void {
     tags: ["home", "kitchen", "sale"],
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   });
   products.create({
     id: "p_3",
@@ -35,5 +37,6 @@ export function seedProducts(): void {
     tags: ["accessories", "leather"],
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   });
 }
