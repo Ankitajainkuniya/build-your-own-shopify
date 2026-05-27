@@ -115,3 +115,52 @@ describe("POST /products", () => {
     expect(res.json().id).not.toBe("p_HACKER");
   });
 });
+
+describe("slugs (lesson 7)", () => {
+  it("derives slug from title", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Crème Brûlée Spoon", priceCents: 1200, currency: "USD" },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().slug).toBe("creme-brulee-spoon");
+  });
+
+  it("409s on duplicate slug", async () => {
+    const first = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Unique Test Item AAA", priceCents: 100, currency: "USD" },
+    });
+    expect(first.statusCode).toBe(201);
+
+    const dup = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Unique Test Item AAA", priceCents: 200, currency: "USD" },
+    });
+    expect(dup.statusCode).toBe(409);
+    expect(dup.json().error.code).toBe("conflict");
+  });
+
+  it("400s when title yields empty slug", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "---", priceCents: 100, currency: "USD" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("GET /products/by-slug/:slug returns the product", async () => {
+    const res = await app.inject({ method: "GET", url: "/products/by-slug/ceramic-mug" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().id).toBe("p_2");
+  });
+
+  it("GET /products/by-slug/:slug 404s on unknown slug", async () => {
+    const res = await app.inject({ method: "GET", url: "/products/by-slug/no-such-thing" });
+    expect(res.statusCode).toBe(404);
+  });
+});

@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { BadRequest, NotFound } from "../errors";
+import { BadRequest, Conflict, NotFound } from "../errors";
+import { slugify } from "./slug";
 import { products } from "./store";
 import type { Product } from "./types";
 
@@ -41,15 +42,30 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     return p;
   });
 
+  app.get<{ Params: { slug: string } }>("/products/by-slug/:slug", async (req) => {
+    const p = products.findBySlug(req.params.slug);
+    if (!p) throw NotFound("product");
+    return p;
+  });
+
   app.post("/products", async (req, reply) => {
     const parse = CreateBody.safeParse(req.body);
     if (!parse.success) {
       throw BadRequest("invalid product body", parse.error.flatten());
     }
     const input = parse.data;
+
+    const desiredSlug = input.slug ? slugify(input.slug) : slugify(input.title);
+    if (!desiredSlug) {
+      throw BadRequest("could not derive a valid slug from title", { title: input.title });
+    }
+    if (products.findBySlug(desiredSlug)) {
+      throw Conflict("slug already in use", { slug: desiredSlug });
+    }
+
     const product: Product = {
       id: newProductId(),
-      slug: input.slug ?? `product-${Date.now()}`,
+      slug: desiredSlug,
       title: input.title,
       priceCents: input.priceCents,
       currency: input.currency,
