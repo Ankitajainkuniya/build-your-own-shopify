@@ -82,11 +82,11 @@ The second approach is the one that teaches you. It's also the harder one.
 
 ## Status
 
-- **v0.2 — Foundations + half of Module 1 shipped (lessons 1–10).**
+- **v0.3 — Foundations + full Module 1 shipped (lessons 1–15).**
 - Lessons 1–5 — Foundations (server, types, errors, validation). ✓
 - Lessons 6–10 — Products part 1: create, slugs, partial updates, cursor pagination, search & filtering. ✓
-- Lessons 11–15 — Products part 2: variants, options, soft delete, indexing, the move to a real database. Coming.
-- Lessons 16+ — Carts, Inventory, Pricing, Checkout, Payments, Orders, Admin, Webhooks, Scale.
+- Lessons 11–15 — Products part 2: soft delete, in-memory indexes, variants, variant-level inventory, options + auto-generated variant combinations. ✓
+- Lessons 16+ — Carts, Inventory, Pricing, Checkout, Payments, Orders, Admin, Webhooks, Scale. Module 2 (Carts) is next.
 
 This repo fills in over time. Each lesson is its own commit with a tag. The lesson markdown is the curriculum; the code is the worked example. Star and watch if you want a notification when the next module lands.
 
