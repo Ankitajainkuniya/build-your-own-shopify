@@ -51,11 +51,13 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     const { limit, search, q, cursor, currency, tag, in_stock, min_price, max_price, include_deleted } = parse.data;
     const needle = (q ?? search)?.toLowerCase();
 
-    const filtered = products
-      .list({ includeDeleted: include_deleted })
+    const candidates = tag
+      ? products.findByTag(tag, { includeDeleted: include_deleted })
+      : products.list({ includeDeleted: include_deleted });
+
+    const filtered = candidates
       .filter((p) => !needle || p.title.toLowerCase().includes(needle))
       .filter((p) => !currency || p.currency === currency)
-      .filter((p) => !tag || p.tags.includes(tag))
       .filter((p) => in_stock === undefined || (in_stock ? p.inventory > 0 : p.inventory === 0))
       .filter((p) => min_price === undefined || p.priceCents >= min_price)
       .filter((p) => max_price === undefined || p.priceCents <= max_price)
@@ -99,7 +101,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
     if (!desiredSlug) {
       throw BadRequest("could not derive a valid slug from title", { title: input.title });
     }
-    if (products.findBySlug(desiredSlug)) {
+    if (products.findBySlug(desiredSlug, { includeDeleted: true })) {
       throw Conflict("slug already in use", { slug: desiredSlug });
     }
 
@@ -136,7 +138,7 @@ export async function registerProductRoutes(app: FastifyInstance): Promise<void>
       if (!normalized) {
         throw BadRequest("invalid slug", { slug: patch.slug });
       }
-      const collide = products.findBySlug(normalized);
+      const collide = products.findBySlug(normalized, { includeDeleted: true });
       if (collide && collide.id !== existing.id) {
         throw Conflict("slug already in use", { slug: normalized });
       }

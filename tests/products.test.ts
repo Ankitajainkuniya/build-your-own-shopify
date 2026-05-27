@@ -391,3 +391,53 @@ describe("soft delete (lesson 11)", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("indexes (lesson 12)", () => {
+  it("slug index keeps a deleted product's slug occupied (cannot create duplicate)", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Slug Squatter Alpha", priceCents: 100, currency: "USD" },
+    });
+    const id = create.json().id;
+    const slug = create.json().slug;
+
+    await app.inject({ method: "DELETE", url: `/products/${id}` });
+
+    const dup = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: { title: "Slug Squatter Alpha", priceCents: 200, currency: "USD", slug },
+    });
+    expect(dup.statusCode).toBe(409);
+  });
+
+  it("tag changes keep the tag index in sync", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/products",
+      payload: {
+        title: "Tag Migrant Beta",
+        priceCents: 100,
+        currency: "USD",
+        tags: ["migration-test"],
+      },
+    });
+    const id = create.json().id;
+
+    const inTag = await app.inject({ method: "GET", url: "/products?tag=migration-test&limit=100" });
+    expect(inTag.json().items.some((p: any) => p.id === id)).toBe(true);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/products/${id}`,
+      payload: { tags: ["other-test"] },
+    });
+
+    const stillInOld = await app.inject({ method: "GET", url: "/products?tag=migration-test&limit=100" });
+    expect(stillInOld.json().items.some((p: any) => p.id === id)).toBe(false);
+
+    const inNew = await app.inject({ method: "GET", url: "/products?tag=other-test&limit=100" });
+    expect(inNew.json().items.some((p: any) => p.id === id)).toBe(true);
+  });
+});
